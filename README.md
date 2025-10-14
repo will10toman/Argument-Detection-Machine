@@ -87,6 +87,5 @@ This project uses datasets from **IBM Project Debater** for the first two catego
 ---
 
 ## 🧾 Citation
-If you use the IBM Debater datasets, cite:
 > Rinott, R., Dankin, L., Perez, C
 
