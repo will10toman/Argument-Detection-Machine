@@ -116,13 +116,13 @@ footer {{
 # ---------------------------------
 # Gradio App Layout
 # ---------------------------------
-with gr.Blocks(css=custom_css, title="Edill Argument Detection Machine") as demo:
+with gr.Blocks(css=custom_css, title="Endill Argument Detection Machine") as demo:
     gr.Markdown(
         f"""
         <div style="text-align:center; padding: 1.5em 0;">
-            <h1 style="color:{UNCW_COLORS['gold']}; font-size:2.5em;">Edill Argument Detection Machine</h1>
+            <h1 style="color:{UNCW_COLORS['gold']}; font-size:2.5em;">Endill Argument Detection Machine</h1>
             <p style="color:{UNCW_COLORS['white']}; font-size:1.1em;">
-                Record speech, see the transcript, and hear text spoken aloud.
+                Record speech, see the transcript, and see how effective your argument was.
             </p>
         </div>
         """
@@ -139,7 +139,7 @@ with gr.Blocks(css=custom_css, title="Edill Argument Detection Machine") as demo
             transcribe_btn = gr.Button("Transcribe", variant="primary")
 
         with gr.Column(scale=2):
-            gr.Markdown("### 📝 Transcript & Speech Output")
+            gr.Markdown("### 📝 Transcript & Argument Output")
             transcript_box = gr.Textbox(
                 label="Transcript",
                 placeholder="Your transcription will appear here...",
