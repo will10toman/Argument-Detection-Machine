@@ -1,0 +1,7 @@
+torch
+transformers>=4.44
+accelerate
+gradio>=4.44
+numpy
+pandas
+pyttsx3
