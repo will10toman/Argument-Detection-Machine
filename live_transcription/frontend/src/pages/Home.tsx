@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Mic, FileText, Video, Type, Users, Activity } from 'lucide-react';
+import { Mic, FileText, Video, Type } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { useAnalysisStore } from '@/store/analysisStore';
 
@@ -9,47 +9,32 @@ const Home = () => {
 
   const inputMethods = [
     {
-      icon: Activity,
-      title: 'Live Analysis',
-      description: 'Real-time transcription, speaker detection & claim analysis',
-      color: 'primary',
-      route: '/live',
-      featured: true,
-    },
-    {
       icon: Type,
       title: 'Paste Text',
-      description: 'Copy and paste text for instant analysis',
+      description: 'Copy and paste text for instant live analysis',
       color: 'claim',
       route: '/analyze?mode=paste',
     },
     {
       icon: Mic,
       title: 'Record Audio',
-      description: 'Speak your text using voice recording',
+      description: 'Real-time transcription with speaker detection & analysis',
       color: 'evidence',
       route: '/analyze?mode=record',
     },
     {
       icon: FileText,
       title: 'Upload File',
-      description: 'Upload .txt, .pdf, or .docx documents',
+      description: 'Upload .txt, .pdf, or .docx with automatic analysis',
       color: 'primary',
       route: '/analyze?mode=file',
     },
     {
       icon: Video,
       title: 'Upload Video',
-      description: 'Extract and analyze text from video',
+      description: 'Extract and analyze text from video in real-time',
       color: 'non-informative',
       route: '/analyze?mode=video',
-    },
-    {
-      icon: Users,
-      title: 'Speaker Diarization',
-      description: 'Identify speakers in audio recordings',
-      color: 'accent',
-      route: '/analyze?mode=diarize',
     },
   ];
 
@@ -91,76 +76,30 @@ const Home = () => {
             </p>
           </div>
 
-          {/* Featured Live Analysis Card */}
-          <div className="animate-fade-in">
-            {inputMethods
-              .filter((method) => method.featured)
-              .map((method) => {
-                const Icon = method.icon;
-                return (
-                  <Card
-                    key={method.title}
-                    onClick={() => navigate(method.route)}
-                    className="group cursor-pointer p-10 hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 border-2 border-primary/50 hover:border-primary bg-gradient-to-br from-primary/5 to-primary/10"
-                  >
-                    <div className="flex flex-col md:flex-row items-center gap-8">
-                      <div className="p-6 rounded-3xl bg-primary/20 group-hover:scale-110 transition-transform">
-                        <Icon className="w-12 h-12 text-primary" />
-                      </div>
-                      <div className="flex-1 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2 mb-3">
-                          <h3 className="text-2xl font-bold">{method.title}</h3>
-                          <span className="px-3 py-1 text-xs font-semibold bg-primary text-primary-foreground rounded-full animate-pulse">
-                            NEW
-                          </span>
-                        </div>
-                        <p className="text-muted-foreground">
-                          {method.description}
-                        </p>
-                        <div className="flex flex-wrap gap-2 mt-4 justify-center md:justify-start">
-                          <span className="px-3 py-1 text-xs bg-background/50 rounded-full">
-                            🎙️ Live Transcription
-                          </span>
-                          <span className="px-3 py-1 text-xs bg-background/50 rounded-full">
-                            👥 Speaker Detection
-                          </span>
-                          <span className="px-3 py-1 text-xs bg-background/50 rounded-full">
-                            🧠 Real-time Analysis
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-          </div>
-
-          {/* Other Input Methods */}
+          {/* Input Method Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-slide-up">
-            {inputMethods
-              .filter((method) => !method.featured)
-              .map((method) => {
-                const Icon = method.icon;
-                return (
-                  <Card
-                    key={method.title}
-                    onClick={() => navigate(method.route)}
-                    className="group cursor-pointer p-8 hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary"
-                  >
-                    <div className="flex flex-col items-center text-center space-y-4">
-                      <div className={`p-4 rounded-2xl bg-${method.color}/10`}>
-                        <Icon className={`w-8 h-8 text-${method.color}`} />
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-semibold mb-2">{method.title}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {method.description}
-                        </p>
-                      </div>
+            {inputMethods.map((method) => {
+              const Icon = method.icon;
+              return (
+                <Card
+                  key={method.title}
+                  onClick={() => navigate(method.route)}
+                  className="group cursor-pointer p-8 hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary"
+                >
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <div className={`p-4 rounded-2xl bg-${method.color}/10`}>
+                      <Icon className={`w-8 h-8 text-${method.color}`} />
                     </div>
-                  </Card>
-                );
-              })}
+                    <div>
+                      <h3 className="text-xl font-semibold mb-2">{method.title}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {method.description}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
 
           {/* Recent Analyses */}

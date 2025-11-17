@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Play, Upload, Mic, Loader2, Users } from 'lucide-react';
+import { ArrowLeft, Upload, Mic, Activity, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { useAnalysisStore } from '@/store/analysisStore';
 import { analyzeText, uploadFile, uploadVideo } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -15,7 +16,6 @@ import ResultsJson from '@/components/ResultsJson';
 import RecordingModal from '@/components/RecordingModal';
 import FileUploadModal from '@/components/FileUploadModal';
 import VideoUploadModal from '@/components/VideoUploadModal';
-import DiarizationModal from '@/components/DiarizationModal';
 
 const Analyze = () => {
   const navigate = useNavigate();
@@ -29,7 +29,6 @@ const Analyze = () => {
     currentAnalysis,
     isAnalyzing,
     setCurrentText,
-    setDebaters,
     addDebater,
     removeDebater,
     updateDebater,
@@ -41,41 +40,19 @@ const Analyze = () => {
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [showFileModal, setShowFileModal] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
-  const [showDiarizationModal, setShowDiarizationModal] = useState(false);
+  const analyzeTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    if (mode === 'record') {
-      setShowRecordModal(true);
-    } else if (mode === 'file') {
-      setShowFileModal(true);
-    } else if (mode === 'video') {
-      setShowVideoModal(true);
-    } else if (mode === 'diarize') {
-      setShowDiarizationModal(true);
-    }
-  }, [mode]);
-
-  const handleAnalyze = async () => {
-    const textToAnalyze = mode === 'paste' 
-      ? debaters.map(d => `${d.name}: ${d.text}`).join('\n\n')
-      : currentText;
+  // Auto-analyze with debounce when text changes
+  const autoAnalyze = useCallback(async (text: string) => {
+    if (!text.trim() || isAnalyzing) return;
     
-    if (!textToAnalyze.trim()) {
-      toast({
-        title: 'No text to analyze',
-        description: mode === 'paste' ? 'Please enter text for at least one debater.' : 'Please enter some text first.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     setIsAnalyzing(true);
     try {
-      const response = await analyzeText(textToAnalyze);
+      const response = await analyzeText(text);
       const run = {
         id: response.run_id || crypto.randomUUID(),
         timestamp: new Date(),
-        text: textToAnalyze,
+        text: text,
         segments: response.segments.map((seg, idx) => ({
           id: `${response.run_id}-${idx}`,
           text: seg.text,
@@ -90,21 +67,45 @@ const Analyze = () => {
       
       setCurrentAnalysis(run);
       addRecentRun(run);
-      
-      toast({
-        title: 'Analysis complete',
-        description: `Found ${run.segments.length} segments.`,
-      });
     } catch (error: any) {
-      toast({
-        title: 'Analysis failed',
-        description: error.response?.data?.message || 'Failed to analyze text. Please try again.',
-        variant: 'destructive',
-      });
+      console.error('Auto-analysis error:', error);
     } finally {
       setIsAnalyzing(false);
     }
-  };
+  }, [mode, debaters, isAnalyzing, setIsAnalyzing, setCurrentAnalysis, addRecentRun]);
+
+  // Debounced auto-analysis
+  useEffect(() => {
+    const textToAnalyze = mode === 'paste' 
+      ? debaters.map(d => `${d.name}: ${d.text}`).join('\n\n')
+      : currentText;
+
+    if (analyzeTimerRef.current) {
+      clearTimeout(analyzeTimerRef.current);
+    }
+
+    if (textToAnalyze.trim()) {
+      analyzeTimerRef.current = setTimeout(() => {
+        autoAnalyze(textToAnalyze);
+      }, 1500); // 1.5 second debounce
+    }
+
+    return () => {
+      if (analyzeTimerRef.current) {
+        clearTimeout(analyzeTimerRef.current);
+      }
+    };
+  }, [currentText, debaters, mode, autoAnalyze]);
+
+  useEffect(() => {
+    if (mode === 'record') {
+      setShowRecordModal(true);
+    } else if (mode === 'file') {
+      setShowFileModal(true);
+    } else if (mode === 'video') {
+      setShowVideoModal(true);
+    }
+  }, [mode]);
 
   const handleFileUpload = async (file: File) => {
     setIsAnalyzing(true);
@@ -194,7 +195,7 @@ const Analyze = () => {
     navigate('/analyze', { replace: true });
     toast({
       title: 'Recording complete',
-      description: 'Transcription ready for analysis.',
+      description: 'Transcription complete. Analysis will update automatically.',
     });
   };
 
@@ -204,18 +205,25 @@ const Analyze = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-10">
+      <header className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <div className="flex-1">
-              <h1 className="text-xl font-bold">Analysis Workbench</h1>
+              <h1 className="text-xl font-bold">Live Analysis Workbench</h1>
+              <p className="text-xs text-muted-foreground">Analysis updates automatically as you type</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-3">
+              {isAnalyzing && (
+                <Badge variant="secondary" className="animate-pulse">
+                  <Activity className="w-3 h-3 mr-1" />
+                  Analyzing...
+                </Badge>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -230,15 +238,7 @@ const Analyze = () => {
                 onClick={() => setShowFileModal(true)}
               >
                 <Upload className="w-4 h-4 mr-2" />
-                Upload File
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowDiarizationModal(true)}
-              >
-                <Users className="w-4 h-4 mr-2" />
-                Diarize
+                File
               </Button>
             </div>
           </div>
@@ -249,23 +249,15 @@ const Analyze = () => {
       <main className="container mx-auto px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-180px)]">
           {/* Left Panel - Text Editor */}
-          <Card className="p-6 flex flex-col">
+          <Card className="p-6 flex flex-col border-2">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">
                 {mode === 'paste' ? 'Debate Input' : 'Input Text'}
               </h2>
-              <Button
-                onClick={handleAnalyze}
-                disabled={isAnalyzing || (mode === 'paste' ? debaters.every(d => !d.text.trim()) : !currentText.trim())}
-                className="bg-gradient-primary"
-              >
-                {isAnalyzing ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Play className="w-4 h-4 mr-2" />
-                )}
-                Analyze
-              </Button>
+              <Badge variant="outline" className="text-xs">
+                {mode === 'paste' && <Users className="w-3 h-3 mr-1" />}
+                {mode === 'paste' ? `${debaters.length} Debaters` : 'Live Mode'}
+              </Badge>
             </div>
             
             {mode === 'paste' ? (
@@ -312,7 +304,7 @@ const Analyze = () => {
                 <Textarea
                   value={currentText}
                   onChange={(e) => setCurrentText(e.target.value)}
-                  placeholder="Paste or type your text here for analysis..."
+                  placeholder="Paste or type your text here. Analysis will update automatically..."
                   className="flex-1 resize-none font-mono text-sm"
                 />
                 
@@ -323,18 +315,19 @@ const Analyze = () => {
             )}
           </Card>
 
-          {/* Right Panel - Results */}
-          <Card className="p-6 flex flex-col overflow-hidden">
+          {/* Right Panel - Live Results */}
+          <Card className="p-6 flex flex-col overflow-hidden border-2">
             {!currentAnalysis ? (
               <div className="flex-1 flex items-center justify-center text-center">
                 <div className="space-y-4">
                   <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                    <Play className="w-8 h-8 text-primary" />
+                    <Activity className="w-8 h-8 text-primary" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold mb-2">Ready to Analyze</h3>
+                    <h3 className="text-lg font-semibold mb-2">Live Analysis Ready</h3>
                     <p className="text-sm text-muted-foreground">
-                      Enter text and click Analyze to see results
+                      Start typing or use Record/Upload buttons.<br />
+                      Analysis will update automatically.
                     </p>
                   </div>
                 </div>
@@ -391,11 +384,6 @@ const Analyze = () => {
         open={showVideoModal}
         onClose={() => handleCloseModal(setShowVideoModal)}
         onUpload={handleVideoUpload}
-      />
-      
-      <DiarizationModal
-        open={showDiarizationModal}
-        onClose={() => handleCloseModal(setShowDiarizationModal)}
       />
     </div>
   );
