@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { Segment } from '@/store/analysisStore';
+import { getApiUrl } from './config';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = getApiUrl('adm');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -78,4 +79,31 @@ export const convertSegmentsToCSV = (segments: Segment[]): string => {
   ]);
   
   return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+};
+
+// Diarization API
+export interface DiarizationSegment {
+  speaker: string;
+  start: number;
+  end: number;
+}
+
+export const diarizeAudio = async (audioBlob: Blob): Promise<DiarizationSegment[]> => {
+  const formData = new FormData();
+  formData.append('file', audioBlob, 'audio.wav');
+  
+  const DIARIZATION_URL = getApiUrl('diarization');
+  
+  const response = await fetch(`${DIARIZATION_URL}/diarize`, {
+    method: 'POST',
+    mode: 'cors',
+    body: formData,
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Diarization failed: ${response.status} - ${errorText}`);
+  }
+  
+  return await response.json();
 };

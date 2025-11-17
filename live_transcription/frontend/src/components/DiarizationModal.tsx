@@ -10,19 +10,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { diarizeAudio, DiarizationSegment } from '@/lib/api';
 
 interface DiarizationModalProps {
   open: boolean;
   onClose: () => void;
 }
-
-interface DiarizationSegment {
-  speaker: string;
-  start: number;
-  end: number;
-}
-
-const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
 const DiarizationModal = ({ open, onClose }: DiarizationModalProps) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -31,21 +24,6 @@ const DiarizationModal = ({ open, onClose }: DiarizationModalProps) => {
   const streamRef = useRef<MediaStream | null>(null);
   const { toast } = useToast();
 
-  const sendAudioToBackend = async (blob: Blob): Promise<DiarizationSegment[]> => {
-    const formData = new FormData();
-    formData.append('audio_file', blob, 'chunk.wav');
-
-    const response = await fetch(`${BACKEND_URL}/diarize`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error('Diarization request failed');
-    }
-
-    return await response.json();
-  };
 
   const startRecording = async () => {
     try {
@@ -68,7 +46,7 @@ const DiarizationModal = ({ open, onClose }: DiarizationModalProps) => {
         if (event.data.size > 0) {
           try {
             console.log('Sending audio chunk to backend...', event.data.size, 'bytes');
-            const diarization = await sendAudioToBackend(event.data);
+            const diarization = await diarizeAudio(event.data);
             console.log('Received diarization:', diarization);
             
             if (diarization && diarization.length > 0) {
@@ -78,7 +56,7 @@ const DiarizationModal = ({ open, onClose }: DiarizationModalProps) => {
             console.error('Backend diarization error:', err);
             toast({
               title: 'Diarization error',
-              description: 'Failed to process audio chunk.',
+              description: err instanceof Error ? err.message : 'Failed to process audio chunk.',
               variant: 'destructive',
             });
           }
