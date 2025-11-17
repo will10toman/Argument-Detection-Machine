@@ -41,7 +41,7 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-card">
+      <header className="border-b bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 backdrop-blur-sm">
         <div className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div>
@@ -54,7 +54,7 @@ const Home = () => {
             </div>
             <button
               onClick={() => navigate('/about')}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="text-sm text-primary hover:text-accent transition-colors font-medium"
             >
               About
             </button>
@@ -66,11 +66,12 @@ const Home = () => {
       <main className="container mx-auto px-6 py-12">
         <div className="max-w-6xl mx-auto space-y-12">
           {/* Hero Section */}
-          <div className="text-center space-y-4 animate-fade-in">
-            <h2 className="text-4xl md:text-5xl font-bold">
+          <div className="text-center space-y-4 animate-fade-in relative">
+            <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent rounded-3xl -z-10" />
+            <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent pt-8">
               Analyze Arguments with AI
             </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto pb-8">
               Detect claims, evidence, and non-informative text with confidence scores.
               Choose your preferred input method below.
             </p>
@@ -84,14 +85,14 @@ const Home = () => {
                 <Card
                   key={method.title}
                   onClick={() => navigate(method.route)}
-                  className="group cursor-pointer p-8 hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary"
+                  className="group cursor-pointer p-8 hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary bg-gradient-to-br from-card to-primary/5"
                 >
                   <div className="flex flex-col items-center text-center space-y-4">
-                    <div className={`p-4 rounded-2xl bg-${method.color}/10`}>
+                    <div className={`p-4 rounded-2xl bg-${method.color}/10 group-hover:bg-${method.color}/20 transition-colors`}>
                       <Icon className={`w-8 h-8 text-${method.color}`} />
                     </div>
                     <div>
-                      <h3 className="text-xl font-semibold mb-2">{method.title}</h3>
+                      <h3 className="text-xl font-semibold mb-2 group-hover:text-primary transition-colors">{method.title}</h3>
                       <p className="text-sm text-muted-foreground">
                         {method.description}
                       </p>
@@ -104,8 +105,8 @@ const Home = () => {
 
           {/* Recent Analyses */}
           {recentRuns.length > 0 && (
-            <div className="space-y-4 animate-fade-in">
-              <h3 className="text-2xl font-semibold">Recent Analyses</h3>
+            <div className="space-y-4 animate-fade-in bg-gradient-to-br from-accent/5 to-primary/5 p-8 rounded-2xl">
+              <h3 className="text-2xl font-semibold bg-gradient-primary bg-clip-text text-transparent">Recent Analyses</h3>
               <div className="grid grid-cols-1 gap-4">
                 {recentRuns.slice(0, 3).map((run) => (
                   <Card
