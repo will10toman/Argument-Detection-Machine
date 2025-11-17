@@ -191,10 +191,16 @@ const Analyze = () => {
   const handleRecordingComplete = (text: string) => {
     setCurrentText(text);
     setShowRecordModal(false);
+    navigate('/analyze', { replace: true });
     toast({
       title: 'Recording complete',
       description: 'Transcription ready for analysis.',
     });
+  };
+
+  const handleCloseModal = (modalSetter: (value: boolean) => void) => {
+    modalSetter(false);
+    navigate('/analyze', { replace: true });
   };
 
   return (
@@ -371,25 +377,25 @@ const Analyze = () => {
       {/* Modals */}
       <RecordingModal
         open={showRecordModal}
-        onClose={() => setShowRecordModal(false)}
+        onClose={() => handleCloseModal(setShowRecordModal)}
         onComplete={handleRecordingComplete}
       />
       
       <FileUploadModal
         open={showFileModal}
-        onClose={() => setShowFileModal(false)}
+        onClose={() => handleCloseModal(setShowFileModal)}
         onUpload={handleFileUpload}
       />
       
       <VideoUploadModal
         open={showVideoModal}
-        onClose={() => setShowVideoModal(false)}
+        onClose={() => handleCloseModal(setShowVideoModal)}
         onUpload={handleVideoUpload}
       />
       
       <DiarizationModal
         open={showDiarizationModal}
-        onClose={() => setShowDiarizationModal(false)}
+        onClose={() => handleCloseModal(setShowDiarizationModal)}
       />
     </div>
   );
