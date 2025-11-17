@@ -1,48 +1,76 @@
-import os
 import io
 import numpy as np
-import torch
-import torchaudio
-from sklearn.cluster import AgglomerativeClustering
-from dotenv import load_dotenv
 import soundfile as sf
+from sklearn.cluster import AgglomerativeClustering
+import python_speech_features
+from pydub import AudioSegment
+from typing import List
+import os
+import tempfile
 
-load_dotenv()
+def extract_features(audio: np.ndarray, sample_rate: int) -> np.ndarray:
+    """
+    Extract MFCC feature embedding for a chunk of mono audio.
+    """
+    if len(audio.shape) > 1:
+        audio = audio.mean(axis=1)
 
-# Extract embeddings using a simple pretrained wav2vec2
-bundle = torchaudio.pipelines.WAV2VEC2_BASE
-model = bundle.get_model()
+    mfcc = python_speech_features.mfcc(audio, samplerate=sample_rate, numcep=13)
+    return mfcc.mean(axis=0)
 
-def extract_embeddings(audio, sample_rate):
-    if sample_rate != bundle.sample_rate:
-        audio = torchaudio.functional.resample(audio, sample_rate, bundle.sample_rate)
-    with torch.inference_mode():
-        emb = model(audio).mean(dim=-1).squeeze().cpu().numpy()
-    return emb
+def perform_diarization(audio_path: str, n_speakers: int = 2) -> List[dict]:
+    """
+    Lightweight speaker diarization using MFCC + clustering.
+    Works fully CPU-only and handles WebM chunks from the frontend.
+    """
 
-def cluster_speakers(audio_bytes: bytes, n_speakers: int = 2):
-    """Performs basic speaker segmentation & clustering on short audio."""
-    audio_np, sr = sf.read(io.BytesIO(audio_bytes), dtype="float32")
-    waveform = torch.tensor(audio_np).unsqueeze(0)
+    # Convert WebM → WAV
+    audio = AudioSegment.from_file(audio_path, format="webm")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as wav_file:
+        wav_path = wav_file.name
+        audio.export(wav_path, format="wav")
 
-    frame_size = int(sr * 2.0)  # 2-second frames
-    embeddings, timestamps = [], []
+    try:
+        audio_np, sr = sf.read(wav_path, dtype="float32")
 
-    for start in range(0, waveform.size(1), frame_size):
-        end = start + frame_size
-        segment = waveform[:, start:end]
-        if segment.size(1) < frame_size // 2:
-            continue
-        emb = extract_embeddings(segment, sr)
-        embeddings.append(emb)
-        timestamps.append((start / sr, end / sr))
+        frame_size = int(sr * 2.0)  # 2-second frames
+        embeddings = []
+        timestamps = []
 
-    embeddings = np.vstack(embeddings)
-    clustering = AgglomerativeClustering(n_clusters=n_speakers)
-    labels = clustering.fit_predict(embeddings)
+        total_samples = len(audio_np)
+        for start in range(0, total_samples, frame_size):
+            end = start + frame_size
+            chunk = audio_np[start:end]
 
-    diar = [
-        {"speaker": f"spk_{int(lbl)}", "start": round(t[0], 2), "end": round(t[1], 2)}
-        for lbl, t in zip(labels, timestamps)
-    ]
-    return diar
+            if len(chunk) < frame_size // 2:
+                continue
+
+            emb = extract_features(chunk, sr)
+            embeddings.append(emb)
+            timestamps.append((start / sr, end / sr))
+
+        if not embeddings:
+            duration = total_samples / sr if sr else 0
+            return [{
+                "speaker": "unknown",
+                "start": 0.0,
+                "end": round(duration, 2)
+            }]
+
+        embeddings = np.vstack(embeddings)
+        clustering = AgglomerativeClustering(n_clusters=n_speakers)
+        labels = clustering.fit_predict(embeddings)
+
+        segments = []
+        for lbl, (s, e) in zip(labels, timestamps):
+            segments.append({
+                "speaker": f"spk_{int(lbl)}",
+                "start": round(s, 2),
+                "end": round(e, 2)
+            })
+
+        return segments
+
+    finally:
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
