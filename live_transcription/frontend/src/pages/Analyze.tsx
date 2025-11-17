@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Play, Upload, Mic, Loader2 } from 'lucide-react';
+import { ArrowLeft, Play, Upload, Mic, Loader2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import ResultsJson from '@/components/ResultsJson';
 import RecordingModal from '@/components/RecordingModal';
 import FileUploadModal from '@/components/FileUploadModal';
 import VideoUploadModal from '@/components/VideoUploadModal';
+import DiarizationModal from '@/components/DiarizationModal';
 
 const Analyze = () => {
   const navigate = useNavigate();
@@ -40,6 +41,7 @@ const Analyze = () => {
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [showFileModal, setShowFileModal] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
+  const [showDiarizationModal, setShowDiarizationModal] = useState(false);
 
   useEffect(() => {
     if (mode === 'record') {
@@ -48,6 +50,8 @@ const Analyze = () => {
       setShowFileModal(true);
     } else if (mode === 'video') {
       setShowVideoModal(true);
+    } else if (mode === 'diarize') {
+      setShowDiarizationModal(true);
     }
   }, [mode]);
 
@@ -222,6 +226,14 @@ const Analyze = () => {
                 <Upload className="w-4 h-4 mr-2" />
                 Upload File
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDiarizationModal(true)}
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Diarize
+              </Button>
             </div>
           </div>
         </div>
@@ -373,6 +385,11 @@ const Analyze = () => {
         open={showVideoModal}
         onClose={() => setShowVideoModal(false)}
         onUpload={handleVideoUpload}
+      />
+      
+      <DiarizationModal
+        open={showDiarizationModal}
+        onClose={() => setShowDiarizationModal(false)}
       />
     </div>
   );

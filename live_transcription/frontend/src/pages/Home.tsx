@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Mic, FileText, Video, Type } from 'lucide-react';
+import { Mic, FileText, Video, Type, Users } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { useAnalysisStore } from '@/store/analysisStore';
 
@@ -35,6 +35,13 @@ const Home = () => {
       description: 'Extract and analyze text from video',
       color: 'non-informative',
       route: '/analyze?mode=video',
+    },
+    {
+      icon: Users,
+      title: 'Live Diarization',
+      description: 'Identify speakers in real-time audio',
+      color: 'accent',
+      route: '/analyze?mode=diarize',
     },
   ];
 
