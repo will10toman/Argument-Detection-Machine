@@ -1,45 +1,35 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import tempfile
+from dotenv import load_dotenv
 import os
-import logging
 
-from .diarization_service import perform_diarization
+load_dotenv()
 
-app = FastAPI()
+from routes import adm, diarization
+
+app = FastAPI(
+    title="ADM + Diarization API",
+    version="1.0.0"
+)
 
 # CORS
+origins = os.getenv("CORS_ORIGINS", "").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-logger = logging.getLogger(__name__)
+# Routers
+app.include_router(adm.router, prefix="/api/adm", tags=["ADM"])
+app.include_router(diarization.router, prefix="/api", tags=["Diarization"])
 
-@app.post("/diarize")
-async def diarize_audio(file: UploadFile = File(...)):
-    if not file:
-        raise HTTPException(status_code=400, detail="No file provided")
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
 
-    # Save uploaded chunk
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_file:
-            content = await file.read()
-            temp_file.write(content)
-            temp_path = temp_file.name
-    except Exception as e:
-        logger.error(f"Failed to save uploaded chunk: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to save uploaded chunk")
-
-    try:
-        segments = perform_diarization(temp_path)
-        return {"segments": segments}
-    except Exception as e:
-        logger.error(f"Diarization failed: {e}", exc_info=True)
-        raise HTTPException(status_code=422, detail=f"Diarization failed: {str(e)}")
-    finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host=os.getenv("HOST"), port=int(os.getenv("PORT")))
