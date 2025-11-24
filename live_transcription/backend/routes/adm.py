@@ -1,17 +1,24 @@
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from models.adm_model import adm_model
+
+from models.adm_model import analyze_text
 
 router = APIRouter()
 
-class AnalyzeTextRequest(BaseModel):
+
+class PredictRequest(BaseModel):
     text: str
 
-@router.post("/analyze-text")
-async def analyze_text(req: AnalyzeTextRequest):
-    if not req.text.strip():
-        raise HTTPException(400, "Text is empty")
 
-    result = adm_model.analyze(req.text)
-    return JSONResponse({"run_id": "local", "segments": result})
+class PredictResponse(BaseModel):
+    label: str
+
+
+@router.post("/predict", response_model=PredictResponse)
+async def predict(request: PredictRequest):
+    text = request.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text must not be empty")
+
+    label = analyze_text(text)
+    return PredictResponse(label=label)
