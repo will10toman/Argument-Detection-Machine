@@ -1,5 +1,6 @@
 import { Segment } from '@/store/analysisStore';
 import { API_BASE_URL, API_ROUTES } from './config';
+import { splitIntoSentences } from './textUtils';
 
 export interface ADMResponse {
   label: 'claim' | 'evidence' | 'non_info';
@@ -32,22 +33,49 @@ export const classifyText = async (text: string): Promise<string> => {
 };
 
 export const analyzeText = async (text: string): Promise<AnalyzeTextResponse> => {
-  const label = await classifyText(text);
+  const sentences = splitIntoSentences(text);
   
-  // Convert single label response to segment format for UI compatibility
-  const normalizedLabel = label === 'claim' ? 'Claim' 
-    : label === 'evidence' ? 'Evidence' 
-    : 'Non-informative';
+  // If no sentences found, treat entire text as one segment
+  if (sentences.length === 0) {
+    const label = await classifyText(text);
+    const normalizedLabel = label === 'claim' ? 'Claim' 
+      : label === 'evidence' ? 'Evidence' 
+      : 'Non-informative';
+    
+    return {
+      run_id: `run_${Date.now()}`,
+      segments: [{
+        text: text,
+        label: normalizedLabel,
+        confidence: 1.0,
+        start_index: 0,
+        end_index: text.length,
+      }],
+    };
+  }
+  
+  // Classify each sentence in parallel for speed
+  const classificationPromises = sentences.map(async (sentence) => {
+    const label = await classifyText(sentence.text);
+    const normalizedLabel: 'Claim' | 'Evidence' | 'Non-informative' = 
+      label === 'claim' ? 'Claim' 
+      : label === 'evidence' ? 'Evidence' 
+      : 'Non-informative';
+    
+    return {
+      text: sentence.text,
+      label: normalizedLabel,
+      confidence: 1.0,
+      start_index: sentence.startIndex,
+      end_index: sentence.endIndex,
+    };
+  });
+  
+  const segments = await Promise.all(classificationPromises);
   
   return {
     run_id: `run_${Date.now()}`,
-    segments: [{
-      text: text,
-      label: normalizedLabel,
-      confidence: 1.0,
-      start_index: 0,
-      end_index: text.length,
-    }],
+    segments,
   };
 };
 

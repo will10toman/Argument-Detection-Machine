@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { diarizeAudio, DiarizationSegment, analyzeText } from '@/lib/api';
+import { extractCompleteSentences } from '@/lib/textUtils';
 
 interface RecordingModalProps {
   open: boolean;
@@ -35,8 +36,7 @@ const RecordingModal = ({ open, onClose, onComplete }: RecordingModalProps) => {
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const transcriptBufferRef = useRef<string>('');
-  const analyzeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const sentenceBufferRef = useRef<string>('');
   
   const { toast } = useToast();
 
@@ -142,30 +142,23 @@ const RecordingModal = ({ open, onClose, onComplete }: RecordingModalProps) => {
       recognition.lang = 'en-US';
 
       recognition.onresult = (event: any) => {
-        let finalTranscript = '';
-
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
-            finalTranscript += transcript + ' ';
-          }
-        }
-
-        if (finalTranscript) {
-          setTranscript(prev => prev + finalTranscript);
-          transcriptBufferRef.current += finalTranscript;
-          
-          // Debounce analysis
-          if (analyzeTimerRef.current) {
-            clearTimeout(analyzeTimerRef.current);
-          }
-          
-          analyzeTimerRef.current = setTimeout(() => {
-            if (transcriptBufferRef.current.trim()) {
-              analyzeTranscript(transcriptBufferRef.current);
-              transcriptBufferRef.current = '';
+            sentenceBufferRef.current += transcript + ' ';
+            setTranscript(prev => prev + transcript + ' ');
+            
+            // Check for complete sentences
+            const { complete, remaining } = extractCompleteSentences(sentenceBufferRef.current);
+            
+            // Analyze each complete sentence immediately
+            for (const sentence of complete) {
+              analyzeTranscript(sentence);
             }
-          }, 2000);
+            
+            // Keep the incomplete part for next iteration
+            sentenceBufferRef.current = remaining;
+          }
         }
       };
 
@@ -225,14 +218,10 @@ const RecordingModal = ({ open, onClose, onComplete }: RecordingModalProps) => {
       streamRef.current = null;
     }
 
-    if (analyzeTimerRef.current) {
-      clearTimeout(analyzeTimerRef.current);
-    }
-
     // Analyze any remaining text
-    if (transcriptBufferRef.current.trim()) {
-      await analyzeTranscript(transcriptBufferRef.current);
-      transcriptBufferRef.current = '';
+    if (sentenceBufferRef.current.trim()) {
+      await analyzeTranscript(sentenceBufferRef.current);
+      sentenceBufferRef.current = '';
     }
   };
 
@@ -257,9 +246,6 @@ const RecordingModal = ({ open, onClose, onComplete }: RecordingModalProps) => {
       }
       if (recognitionRef.current) {
         recognitionRef.current.stop();
-      }
-      if (analyzeTimerRef.current) {
-        clearTimeout(analyzeTimerRef.current);
       }
     };
   }, []);
