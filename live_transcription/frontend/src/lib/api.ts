@@ -1,15 +1,9 @@
-import axios from 'axios';
 import { Segment } from '@/store/analysisStore';
-import { getApiUrl } from './config';
+import { API_BASE_URL, API_ROUTES } from './config';
 
-const API_BASE_URL = getApiUrl('adm');
-
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+export interface ADMResponse {
+  label: 'claim' | 'evidence' | 'non_info';
+}
 
 export interface AnalyzeTextResponse {
   run_id: string;
@@ -22,52 +16,60 @@ export interface AnalyzeTextResponse {
   }>;
 }
 
-export const analyzeText = async (text: string): Promise<AnalyzeTextResponse> => {
-  const response = await api.post<AnalyzeTextResponse>('/api/adm/analyze-text', { text });
-  return response.data;
+export const classifyText = async (text: string): Promise<string> => {
+  const res = await fetch(API_ROUTES.ADM_PREDICT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!res.ok) throw new Error('ADM request failed');
+
+  const data: ADMResponse = await res.json();
+  return data.label;
 };
 
-export const uploadFile = async (file: File): Promise<AnalyzeTextResponse> => {
-  const formData = new FormData();
-  formData.append('file', file);
+export const analyzeText = async (text: string): Promise<AnalyzeTextResponse> => {
+  const label = await classifyText(text);
   
-  const response = await api.post<AnalyzeTextResponse>('/api/adm/upload-file', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-  return response.data;
+  // Convert single label response to segment format for UI compatibility
+  const normalizedLabel = label === 'claim' ? 'Claim' 
+    : label === 'evidence' ? 'Evidence' 
+    : 'Non-informative';
+  
+  return {
+    run_id: `run_${Date.now()}`,
+    segments: [{
+      text: text,
+      label: normalizedLabel,
+      confidence: 1.0,
+      start_index: 0,
+      end_index: text.length,
+    }],
+  };
+};
+
+// Placeholder functions for file upload (not implemented in new backend)
+export const uploadFile = async (file: File): Promise<AnalyzeTextResponse> => {
+  throw new Error('File upload not yet implemented in backend');
 };
 
 export const uploadVideo = async (file: File): Promise<AnalyzeTextResponse> => {
-  const formData = new FormData();
-  formData.append('video', file);
-  
-  const response = await api.post<AnalyzeTextResponse>('/api/adm/upload-video', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-  return response.data;
+  throw new Error('Video upload not yet implemented in backend');
 };
 
 export const getRunDetail = async (runId: string): Promise<AnalyzeTextResponse> => {
-  const response = await api.get<AnalyzeTextResponse>(`/api/adm/runs/${runId}`);
-  return response.data;
+  throw new Error('Run detail not yet implemented in backend');
 };
 
 export const exportRunCSV = async (runId: string): Promise<Blob> => {
-  const response = await api.get(`/api/adm/runs/${runId}/export.csv`, {
-    responseType: 'blob',
-  });
-  return response.data;
+  throw new Error('CSV export not yet implemented in backend');
 };
 
 export const exportRunJSON = async (runId: string): Promise<Blob> => {
-  const response = await api.get(`/api/adm/runs/${runId}/export.json`, {
-    responseType: 'blob',
-  });
-  return response.data;
+  throw new Error('JSON export not yet implemented in backend');
 };
 
 export const convertSegmentsToCSV = (segments: Segment[]): string => {
@@ -90,20 +92,17 @@ export interface DiarizationSegment {
 
 export const diarizeAudio = async (audioBlob: Blob): Promise<DiarizationSegment[]> => {
   const formData = new FormData();
-  formData.append('file', audioBlob, 'audio.wav');
+  formData.append('file', audioBlob, 'audio.webm');
   
-  const DIARIZATION_URL = getApiUrl('diarization');
-  
-  const response = await fetch(`${DIARIZATION_URL}/diarize`, {
+  const response = await fetch(API_ROUTES.DIARIZE, {
     method: 'POST',
-    mode: 'cors',
     body: formData,
   });
   
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Diarization failed: ${response.status} - ${errorText}`);
+    throw new Error('Diarization request failed');
   }
   
-  return await response.json();
+  const data = await response.json();
+  return data.segments;
 };
