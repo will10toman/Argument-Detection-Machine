@@ -1,0 +1,28 @@
+# Core framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.9
+python-dotenv==1.0.0
+aiofiles==23.2.1
+pydantic==1.10.14
+
+# Transformers / Torch for ADM model
+torch==2.1.0+cpu
+torchaudio==2.1.0+cpu
+transformers==4.41.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Whisper + audio tools
+openai-whisper==20250625
+librosa==0.11.0
+numpy==1.26.4
+scipy==1.10.1
+soundfile==0.12.1
+
+# File handling, docs, data
+opencv-python==4.9.0.80
+moviepy==1.0.3
+python-docx==1.1.0
+PyPDF2==3.0.1
+openpyxl==3.1.2
+pandas==2.2.2
