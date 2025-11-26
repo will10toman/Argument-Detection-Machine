@@ -13,7 +13,7 @@ import ResultsSegments from '@/components/ResultsSegments';
 import ResultsHighlights from '@/components/ResultsHighlights';
 import ResultsCharts from '@/components/ResultsCharts';
 import ResultsJson from '@/components/ResultsJson';
-import RecordingModal from '@/components/RecordingModal';
+import LiveRecording from '@/components/LiveRecording';
 import FileUploadModal from '@/components/FileUploadModal';
 import VideoUploadModal from '@/components/VideoUploadModal';
 
@@ -37,7 +37,6 @@ const Analyze = () => {
     addRecentRun,
   } = useAnalysisStore();
 
-  const [showRecordModal, setShowRecordModal] = useState(false);
   const [showFileModal, setShowFileModal] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const analyzeTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -98,9 +97,7 @@ const Analyze = () => {
   }, [currentText, debaters, mode, autoAnalyze]);
 
   useEffect(() => {
-    if (mode === 'record') {
-      setShowRecordModal(true);
-    } else if (mode === 'file') {
+    if (mode === 'file') {
       setShowFileModal(true);
     } else if (mode === 'video') {
       setShowVideoModal(true);
@@ -191,8 +188,6 @@ const Analyze = () => {
 
   const handleRecordingComplete = (text: string) => {
     setCurrentText(text);
-    setShowRecordModal(false);
-    navigate('/analyze', { replace: true });
     toast({
       title: 'Recording complete',
       description: 'Transcription complete. Analysis will update automatically.',
@@ -224,14 +219,16 @@ const Analyze = () => {
                   Analyzing...
                 </Badge>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowRecordModal(true)}
-              >
-                <Mic className="w-4 h-4 mr-2" />
-                Record
-              </Button>
+              {mode !== 'record' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/analyze?mode=record')}
+                >
+                  <Mic className="w-4 h-4 mr-2" />
+                  Record
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -248,69 +245,75 @@ const Analyze = () => {
       {/* Main Content */}
       <main className="container mx-auto px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-180px)]">
-          {/* Left Panel - Text Editor */}
+          {/* Left Panel - Text Editor or Live Recording */}
           <Card className="p-6 flex flex-col border-2">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">
-                {mode === 'paste' ? 'Debate Input' : 'Input Text'}
-              </h2>
-              <Badge variant="outline" className="text-xs">
-                {mode === 'paste' && <Users className="w-3 h-3 mr-1" />}
-                {mode === 'paste' ? `${debaters.length} Debaters` : 'Live Mode'}
-              </Badge>
-            </div>
-            
-            {mode === 'paste' ? (
-              <div className="flex-1 flex flex-col gap-4 overflow-auto">
-                {debaters.map((debater, index) => (
-                  <div key={debater.id} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={debater.name}
-                        onChange={(e) => updateDebater(debater.id, 'name', e.target.value)}
-                        className="flex-1 px-3 py-1.5 text-sm font-medium border border-input bg-background rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        placeholder="Debater name"
-                      />
-                      {debaters.length > 1 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeDebater(debater.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          Remove
-                        </Button>
-                      )}
-                    </div>
-                    <Textarea
-                      value={debater.text}
-                      onChange={(e) => updateDebater(debater.id, 'text', e.target.value)}
-                      placeholder={`Enter ${debater.name}'s argument...`}
-                      className="min-h-[120px] resize-none font-mono text-sm"
-                    />
-                  </div>
-                ))}
-                <Button
-                  variant="outline"
-                  onClick={addDebater}
-                  className="w-full border-dashed"
-                >
-                  + Add New Debater
-                </Button>
-              </div>
+            {mode === 'record' ? (
+              <LiveRecording onComplete={handleRecordingComplete} />
             ) : (
               <>
-                <Textarea
-                  value={currentText}
-                  onChange={(e) => setCurrentText(e.target.value)}
-                  placeholder="Paste or type your text here. Analysis will update automatically..."
-                  className="flex-1 resize-none font-mono text-sm"
-                />
-                
-                <div className="mt-4 text-xs text-muted-foreground">
-                  {currentText.length} characters • {currentText.split(/\s+/).filter(Boolean).length} words
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold">
+                    {mode === 'paste' ? 'Debate Input' : 'Input Text'}
+                  </h2>
+                  <Badge variant="outline" className="text-xs">
+                    {mode === 'paste' && <Users className="w-3 h-3 mr-1" />}
+                    {mode === 'paste' ? `${debaters.length} Debaters` : 'Live Mode'}
+                  </Badge>
                 </div>
+                
+                {mode === 'paste' ? (
+                  <div className="flex-1 flex flex-col gap-4 overflow-auto">
+                    {debaters.map((debater, index) => (
+                      <div key={debater.id} className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={debater.name}
+                            onChange={(e) => updateDebater(debater.id, 'name', e.target.value)}
+                            className="flex-1 px-3 py-1.5 text-sm font-medium border border-input bg-background rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            placeholder="Debater name"
+                          />
+                          {debaters.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeDebater(debater.id)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+                        <Textarea
+                          value={debater.text}
+                          onChange={(e) => updateDebater(debater.id, 'text', e.target.value)}
+                          placeholder={`Enter ${debater.name}'s argument...`}
+                          className="min-h-[120px] resize-none font-mono text-sm"
+                        />
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline"
+                      onClick={addDebater}
+                      className="w-full border-dashed"
+                    >
+                      + Add New Debater
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Textarea
+                      value={currentText}
+                      onChange={(e) => setCurrentText(e.target.value)}
+                      placeholder="Paste or type your text here. Analysis will update automatically..."
+                      className="flex-1 resize-none font-mono text-sm"
+                    />
+                    
+                    <div className="mt-4 text-xs text-muted-foreground">
+                      {currentText.length} characters • {currentText.split(/\s+/).filter(Boolean).length} words
+                    </div>
+                  </>
+                )}
               </>
             )}
           </Card>
@@ -368,12 +371,6 @@ const Analyze = () => {
       </main>
 
       {/* Modals */}
-      <RecordingModal
-        open={showRecordModal}
-        onClose={() => handleCloseModal(setShowRecordModal)}
-        onComplete={handleRecordingComplete}
-      />
-      
       <FileUploadModal
         open={showFileModal}
         onClose={() => handleCloseModal(setShowFileModal)}
