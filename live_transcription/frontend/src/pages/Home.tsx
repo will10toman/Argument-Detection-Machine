@@ -68,7 +68,7 @@ const Home = () => {
           {/* Hero Section */}
           <div className="text-center space-y-4 animate-fade-in relative">
             <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent rounded-3xl -z-10" />
-            <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent pt-8">
+            <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent pt-8 pb-2 leading-tight">
               Analyze Arguments with AI
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto pb-8">
