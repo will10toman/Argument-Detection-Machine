@@ -26,17 +26,24 @@ interface AnalyzedSegment {
   confidence: number;
 }
 
+interface SpeakerData {
+  speaker: string;
+  transcript: string;
+  analyzedSegments: AnalyzedSegment[];
+}
+
 const RecordingModal = ({ open, onClose, onComplete }: RecordingModalProps) => {
   const [isRecording, setIsRecording] = useState(false);
-  const [transcript, setTranscript] = useState('');
+  const [speakerData, setSpeakerData] = useState<Map<string, SpeakerData>>(new Map());
   const [diarizationSegments, setDiarizationSegments] = useState<DiarizationSegment[]>([]);
-  const [analyzedSegments, setAnalyzedSegments] = useState<AnalyzedSegment[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [currentSpeaker, setCurrentSpeaker] = useState<string>('spk_0');
   
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const sentenceBufferRef = useRef<string>('');
+  const recordingStartTimeRef = useRef<number>(0);
   
   const { toast } = useToast();
 
@@ -68,7 +75,15 @@ const RecordingModal = ({ open, onClose, onComplete }: RecordingModalProps) => {
     }
   };
 
-  const analyzeTranscript = async (text: string) => {
+  const getCurrentSpeaker = (timeOffset: number): string => {
+    // Find which speaker is active at the given time offset
+    const activeSeg = diarizationSegments.find(
+      seg => timeOffset >= seg.start && timeOffset <= seg.end
+    );
+    return activeSeg?.speaker || currentSpeaker;
+  };
+
+  const analyzeTranscriptForSpeaker = async (speaker: string, text: string) => {
     if (!text.trim() || isAnalyzing) return;
     
     setIsAnalyzing(true);
@@ -80,7 +95,13 @@ const RecordingModal = ({ open, onClose, onComplete }: RecordingModalProps) => {
         confidence: seg.confidence,
       }));
       
-      setAnalyzedSegments(prev => [...prev, ...newSegments]);
+      setSpeakerData(prev => {
+        const newMap = new Map(prev);
+        const data = newMap.get(speaker) || { speaker, transcript: '', analyzedSegments: [] };
+        data.analyzedSegments = [...data.analyzedSegments, ...newSegments];
+        newMap.set(speaker, data);
+        return newMap;
+      });
     } catch (error) {
       console.error('Analysis error:', error);
     } finally {
@@ -111,7 +132,14 @@ const RecordingModal = ({ open, onClose, onComplete }: RecordingModalProps) => {
           try {
             const diarization = await diarizeAudio(event.data);
             if (diarization && diarization.length > 0) {
-              setDiarizationSegments(prev => [...prev, ...diarization]);
+              setDiarizationSegments(prev => {
+                const newSegments = [...prev, ...diarization];
+                // Update current speaker based on latest segment
+                if (diarization.length > 0) {
+                  setCurrentSpeaker(diarization[diarization.length - 1].speaker);
+                }
+                return newSegments;
+              });
             }
           } catch (err) {
             console.error('Diarization error:', err);
@@ -145,15 +173,27 @@ const RecordingModal = ({ open, onClose, onComplete }: RecordingModalProps) => {
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
+            // Calculate time offset from recording start
+            const timeOffset = (Date.now() - recordingStartTimeRef.current) / 1000;
+            const speaker = getCurrentSpeaker(timeOffset);
+            
             sentenceBufferRef.current += transcript + ' ';
-            setTranscript(prev => prev + transcript + ' ');
+            
+            // Update speaker's transcript
+            setSpeakerData(prev => {
+              const newMap = new Map(prev);
+              const data = newMap.get(speaker) || { speaker, transcript: '', analyzedSegments: [] };
+              data.transcript += transcript + ' ';
+              newMap.set(speaker, data);
+              return newMap;
+            });
             
             // Check for complete sentences
             const { complete, remaining } = extractCompleteSentences(sentenceBufferRef.current);
             
-            // Analyze each complete sentence immediately
+            // Analyze each complete sentence for the current speaker
             for (const sentence of complete) {
-              analyzeTranscript(sentence);
+              analyzeTranscriptForSpeaker(speaker, sentence);
             }
             
             // Keep the incomplete part for next iteration
@@ -182,10 +222,11 @@ const RecordingModal = ({ open, onClose, onComplete }: RecordingModalProps) => {
       recognitionRef.current = recognition;
       recognition.start();
       
+      recordingStartTimeRef.current = Date.now();
       setIsRecording(true);
-      setTranscript('');
+      setSpeakerData(new Map());
       setDiarizationSegments([]);
-      setAnalyzedSegments([]);
+      setCurrentSpeaker('spk_0');
 
       toast({
         title: 'Recording started',
@@ -218,15 +259,19 @@ const RecordingModal = ({ open, onClose, onComplete }: RecordingModalProps) => {
       streamRef.current = null;
     }
 
-    // Analyze any remaining text
+    // Analyze any remaining text for current speaker
     if (sentenceBufferRef.current.trim()) {
-      await analyzeTranscript(sentenceBufferRef.current);
+      await analyzeTranscriptForSpeaker(currentSpeaker, sentenceBufferRef.current);
       sentenceBufferRef.current = '';
     }
   };
 
   const handleComplete = () => {
-    if (!transcript.trim()) {
+    const fullTranscript = Array.from(speakerData.values())
+      .map(data => data.transcript)
+      .join(' ');
+      
+    if (!fullTranscript.trim()) {
       toast({
         title: 'No transcript',
         description: 'No speech was detected. Please try recording again.',
@@ -236,7 +281,7 @@ const RecordingModal = ({ open, onClose, onComplete }: RecordingModalProps) => {
     }
 
     stopRecording();
-    onComplete(transcript);
+    onComplete(fullTranscript);
   };
 
   useEffect(() => {
@@ -263,88 +308,95 @@ const RecordingModal = ({ open, onClose, onComplete }: RecordingModalProps) => {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-3 gap-4 flex-1 overflow-hidden">
-          {/* Transcription Column */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <Badge variant="outline" className="text-xs">
-                <MessageSquare className="w-3 h-3 mr-1" />
-                Transcription
-              </Badge>
-            </div>
-            <ScrollArea className="flex-1 border rounded-lg p-3">
-              {transcript ? (
-                <p className="text-sm whitespace-pre-wrap">{transcript}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  {isRecording ? 'Listening...' : 'Transcript will appear here'}
-                </p>
-              )}
-            </ScrollArea>
-          </div>
-
-          {/* Speaker Detection Column */}
-          <div className="flex flex-col gap-2">
-            <Badge variant="outline" className="text-xs w-fit">
-              <Users className="w-3 h-3 mr-1" />
-              Speakers ({diarizationSegments.length})
-            </Badge>
-            <ScrollArea className="flex-1 border rounded-lg p-3">
-              {diarizationSegments.length > 0 ? (
-                <div className="space-y-2">
-                  {diarizationSegments.map((seg, idx) => (
-                    <div key={idx} className="text-xs animate-fade-in">
+        <div className="flex-1 overflow-hidden">
+          <ScrollArea className="h-full">
+            {speakerData.size === 0 ? (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <div className="text-center py-12">
+                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-sm">
+                    {isRecording ? 'Listening for speakers...' : 'Speaker zones will appear here'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 p-4">
+                {Array.from(speakerData.values()).map((data) => (
+                  <div 
+                    key={data.speaker}
+                    className="border rounded-lg p-4 bg-card animate-fade-in"
+                  >
+                    {/* Speaker Header */}
+                    <div className="flex items-center gap-2 mb-3 pb-3 border-b">
                       <Badge 
                         variant="outline" 
-                        className={`${getSpeakerColor(seg.speaker)} mb-1`}
+                        className={`${getSpeakerColor(data.speaker)}`}
                       >
-                        {seg.speaker.toUpperCase()}
+                        <Users className="w-3 h-3 mr-1" />
+                        {data.speaker.toUpperCase()}
                       </Badge>
-                      <div className="text-muted-foreground">
-                        {formatTime(seg.start)} → {formatTime(seg.end)}
+                      {data.analyzedSegments.length > 0 && (
+                        <Badge variant="outline" className="text-xs">
+                          <Brain className="w-3 h-3 mr-1" />
+                          {data.analyzedSegments.length} segments
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {/* Transcript Column */}
+                      <div>
+                        <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                          <MessageSquare className="w-3 h-3" />
+                          Transcript
+                        </div>
+                        <div className="text-sm border rounded-lg p-3 bg-background/50 min-h-[100px]">
+                          {data.transcript || (
+                            <span className="text-muted-foreground italic">
+                              Waiting for speech...
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Analysis Column */}
+                      <div>
+                        <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                          <Brain className="w-3 h-3" />
+                          Analysis
+                        </div>
+                        <div className="space-y-2">
+                          {data.analyzedSegments.length > 0 ? (
+                            data.analyzedSegments.map((seg, idx) => (
+                              <div 
+                                key={idx} 
+                                className="p-2 rounded border text-xs bg-background/50"
+                              >
+                                <Badge 
+                                  variant="outline" 
+                                  className={`${getLabelColor(seg.label)} mb-1`}
+                                >
+                                  {seg.label}
+                                </Badge>
+                                <p className="mt-1">{seg.text}</p>
+                                <p className="text-muted-foreground mt-1">
+                                  {(seg.confidence * 100).toFixed(0)}% confidence
+                                </p>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-sm text-muted-foreground italic border rounded-lg p-3 bg-background/50 min-h-[100px] flex items-center justify-center">
+                              Analysis will appear here...
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  {isRecording ? 'Detecting speakers...' : 'Speakers will appear here'}
-                </p>
-              )}
-            </ScrollArea>
-          </div>
-
-          {/* Analysis Column */}
-          <div className="flex flex-col gap-2">
-            <Badge variant="outline" className="text-xs w-fit">
-              <Brain className="w-3 h-3 mr-1" />
-              Analysis {isAnalyzing && '(analyzing...)'}
-            </Badge>
-            <ScrollArea className="flex-1 border rounded-lg p-3">
-              {analyzedSegments.length > 0 ? (
-                <div className="space-y-2">
-                  {analyzedSegments.map((seg, idx) => (
-                    <div key={idx} className="p-2 rounded border text-xs animate-fade-in">
-                      <Badge 
-                        variant="outline" 
-                        className={`${getLabelColor(seg.label)} mb-1`}
-                      >
-                        {seg.label}
-                      </Badge>
-                      <p className="mt-1">{seg.text}</p>
-                      <p className="text-muted-foreground mt-1">
-                        {(seg.confidence * 100).toFixed(0)}% confidence
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  {isRecording ? 'Analysis will appear here...' : 'Claims & evidence will appear here'}
-                </p>
-              )}
-            </ScrollArea>
-          </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t">
